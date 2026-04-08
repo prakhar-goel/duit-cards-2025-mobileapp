@@ -1,0 +1,91 @@
+name: Mobile Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Target platform"
+        required: true
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+      profile:
+        description: "EAS build profile (from eas.json)"
+        required: true
+        default: production
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EXPO_NO_TELEMETRY: "1"
+  CI: "true"
+
+jobs:
+  validate-secrets:
+    name: Validate release secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required secrets
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "Missing required secret: EXPO_TOKEN"
+            exit 1
+          fi
+
+  release:
+    name: EAS Release Build
+    needs: validate-secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20 with npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Typecheck before release
+        run: npm run typecheck
+
+      - name: Setup Expo and EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          expo-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Trigger EAS build
+        run: |
+          PLATFORM="${{ github.event.inputs.platform }}"
+          PROFILE="${{ github.event.inputs.profile }}"
+          if [ "$PLATFORM" = "all" ]; then
+            eas build --non-interactive --platform all --profile "$PROFILE"
+          elif [ "$PLATFORM" = "ios" ]; then
+            eas build --non-interactive --platform ios --profile "$PROFILE"
+          else
+            eas build --non-interactive --platform android --profile "$PROFILE"
+          fi
+
+      - name: Publish release summary
+        if: always()
+        run: |
+          {
+            echo "## Release workflow"
+            echo "- Platform: ${{ github.event.inputs.platform }}"
+            echo "- Profile: ${{ github.event.inputs.profile }}"
+            echo "- EAS build command executed."
+          } >> "$GITHUB_STEP_SUMMARY"
