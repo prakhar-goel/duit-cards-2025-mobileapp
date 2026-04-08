@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StatusBar } from "expo-status-bar";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   ScrollView,
@@ -14,6 +16,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { OnboardingWizard } from "./src/onboarding/OnboardingWizard";
+import { featureFlags } from "./src/onboarding/featureFlags";
+import { ONBOARDING_COMPLETED_KEY, shouldShowOnboarding } from "./src/onboarding/state";
 
 type Contact = {
   id: string;
@@ -379,41 +384,84 @@ function DashboardStack({ contacts }: { contacts: Contact[] }) {
   );
 }
 
+function MainTabs() {
+  return (
+    <Tabs.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: "#3563E9",
+        tabBarInactiveTintColor: "#97A1B3",
+        tabBarStyle: {
+          height: 78,
+          paddingBottom: 8,
+          paddingTop: 8,
+          borderTopColor: "#E5E9F2",
+          backgroundColor: "#FFFFFF",
+        },
+        tabBarIcon: ({ color, size }) => {
+          const icons: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
+            Dashboard: "grid-outline",
+            AddCard: "add-circle-outline",
+            Reminders: "notifications-outline",
+            MyCard: "person-circle-outline",
+          };
+          return <Ionicons name={icons[route.name as keyof TabsParamList]} size={size} color={color} />;
+        },
+      })}
+    >
+      <Tabs.Screen name="Dashboard" options={{ title: "Home" }}>
+        {() => <DashboardStack contacts={CONTACTS} />}
+      </Tabs.Screen>
+      <Tabs.Screen name="AddCard" component={AddCardScreen} options={{ title: "Add" }} />
+      <Tabs.Screen name="Reminders" component={RemindersScreen} />
+      <Tabs.Screen name="MyCard" component={MyCardScreen} options={{ title: "My Card" }} />
+    </Tabs.Navigator>
+  );
+}
+
 export default function App() {
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function hydrateOnboardingState() {
+      try {
+        const completed = await AsyncStorage.getItem(ONBOARDING_COMPLETED_KEY);
+        if (active) setHasCompletedOnboarding(completed === "true");
+      } finally {
+        if (active) setIsBootstrapping(false);
+      }
+    }
+
+    void hydrateOnboardingState();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function handleCompleteOnboarding() {
+    setHasCompletedOnboarding(true);
+    await AsyncStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
+  }
+
+  const showOnboarding = shouldShowOnboarding(featureFlags.onboardingWizardV1, hasCompletedOnboarding);
+
   return (
     <SafeAreaProvider>
       <NavigationContainer theme={appTheme}>
         <StatusBar style="dark" />
-        <Tabs.Navigator
-          screenOptions={({ route }) => ({
-            headerShown: false,
-            tabBarActiveTintColor: "#3563E9",
-            tabBarInactiveTintColor: "#97A1B3",
-            tabBarStyle: {
-              height: 78,
-              paddingBottom: 8,
-              paddingTop: 8,
-              borderTopColor: "#E5E9F2",
-              backgroundColor: "#FFFFFF",
-            },
-            tabBarIcon: ({ color, size }) => {
-              const icons: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
-                Dashboard: "grid-outline",
-                AddCard: "add-circle-outline",
-                Reminders: "notifications-outline",
-                MyCard: "person-circle-outline",
-              };
-              return <Ionicons name={icons[route.name as keyof TabsParamList]} size={size} color={color} />;
-            },
-          })}
-        >
-          <Tabs.Screen name="Dashboard" options={{ title: "Home" }}>
-            {() => <DashboardStack contacts={CONTACTS} />}
-          </Tabs.Screen>
-          <Tabs.Screen name="AddCard" component={AddCardScreen} options={{ title: "Add" }} />
-          <Tabs.Screen name="Reminders" component={RemindersScreen} />
-          <Tabs.Screen name="MyCard" component={MyCardScreen} options={{ title: "My Card" }} />
-        </Tabs.Navigator>
+        {isBootstrapping ? (
+          <SafeAreaView style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color="#3563E9" />
+          </SafeAreaView>
+        ) : showOnboarding ? (
+          <OnboardingWizard onComplete={() => void handleCompleteOnboarding()} />
+        ) : (
+          <MainTabs />
+        )}
       </NavigationContainer>
     </SafeAreaProvider>
   );
@@ -546,4 +594,5 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 4,
   },
+  loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#F5F7FB" },
 });

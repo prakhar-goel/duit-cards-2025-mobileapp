@@ -20,6 +20,11 @@ This version is intentionally frontend-focused and uses mock data only.
 
 ### Implemented Screens
 
+- Onboarding Wizard (new)
+  - Multi-step premium onboarding flow before main app
+  - Goal selection + profile capture
+  - Local completion persistence and skip support
+  - Feature-flag controlled rollout
 - Home Dashboard
   - Search contacts
   - Filter by `Recent`, `Favorites`, and `Tags`
@@ -95,9 +100,15 @@ npm run web
 - `npm run ios` - Launch on iOS
 - `npm run android` - Launch on Android
 - `npm run web` - Launch web preview
+- `npm run test` - Run unit tests (Vitest)
 - `npm run typecheck` - Run TypeScript checks
 - `npm run build:web` - Export static web build to `dist/`
-- `npm run ci:verify` - Run typecheck + web export validation
+- `npm run ci:verify` - Run tests + typecheck + web export validation
+
+## Feature Flags
+
+- `src/onboarding/featureFlags.ts`
+  - `onboardingWizardV1`: controls whether onboarding is shown for users who have not completed it yet.
 
 ## Project Notes
 
