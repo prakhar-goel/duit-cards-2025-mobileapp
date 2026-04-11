@@ -21,10 +21,10 @@ This version is intentionally frontend-focused and uses mock data only.
 ### Implemented Screens
 
 - Onboarding Wizard (new)
-  - Multi-step premium onboarding flow before main app
-  - Goal selection + profile capture
-  - Local completion persistence and skip support
-  - Feature-flag controlled rollout
+  - Minimal, Google-inspired flow: name first, then personalized copy
+  - Role, company, optional website, networking intents (multi-select)
+  - Mock “AI” step + plan summary (replace with API; see `docs/onboarding-ai-and-storage.md`)
+  - Saves profile JSON locally on complete or skip; feature-flag controlled
 - Home Dashboard
   - Search contacts
   - Filter by `Recent`, `Favorites`, and `Tags`
@@ -59,6 +59,7 @@ This version is intentionally frontend-focused and uses mock data only.
 - React Navigation (Bottom Tabs + Native Stack)
 - `react-native-safe-area-context`
 - `react-native-screens`
+- `expo-linear-gradient` (onboarding backgrounds)
 
 ## Getting Started
 
@@ -109,6 +110,10 @@ npm run web
 
 - `src/onboarding/featureFlags.ts`
   - `onboardingWizardV1`: controls whether onboarding is shown for users who have not completed it yet.
+
+## Onboarding + AI notes
+
+- See [docs/onboarding-ai-and-storage.md](docs/onboarding-ai-and-storage.md) for wiring real LLMs, website enrichment, and production storage.
 
 ## Project Notes
 

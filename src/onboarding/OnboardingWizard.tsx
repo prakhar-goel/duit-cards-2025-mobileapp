@@ -1,295 +1,593 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useEffect, useMemo, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { getAiFollowUpContent, getPlanBullets } from "./mockAi";
 import {
+  buildProfilePayload,
   canProceed,
+  firstName,
   nextStepIndex,
   ONBOARDING_STEPS,
-  OnboardingForm,
-  OnboardingGoal,
+  type OnboardingForm,
+  type OnboardingProfilePayload,
+  type OnboardingStepId,
+  type NetworkingIntentId,
   prevStepIndex,
 } from "./state";
 
-const GOALS: { id: OnboardingGoal; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { id: "networking", label: "Grow network", icon: "people-outline" },
-  { id: "leadGen", label: "Find leads", icon: "sparkles-outline" },
-  { id: "partnerships", label: "Partnerships", icon: "briefcase-outline" },
-  { id: "hiring", label: "Hire talent", icon: "person-add-outline" },
-];
+const ACCENT_ORANGE = "#EA580C";
+const CTA_GREEN = "#16A34A";
+const CTA_GREEN_DISABLED = "#BBD9C3";
+const TEXT_PRIMARY = "#0F172A";
+const TEXT_MUTED = "#64748B";
 
 const INITIAL_FORM: OnboardingForm = {
   fullName: "",
-  workEmail: "",
-  goals: [],
+  roleTitle: "",
+  company: "",
+  website: "",
+  websiteChoiceMade: false,
+  networkingIntents: [],
+  aiFollowUpChoice: null,
 };
 
+const DISPLAY_NAME_OPTIONS: { id: string; emoji: string; label: string }[] = [
+  { id: "n1", emoji: "👋", label: "Alex Chen" },
+  { id: "n2", emoji: "👋", label: "Jordan Lee" },
+  { id: "n3", emoji: "👋", label: "Sam Rivera" },
+  { id: "n4", emoji: "👋", label: "Priya Sharma" },
+  { id: "n5", emoji: "👋", label: "Marcus Webb" },
+  { id: "n6", emoji: "👋", label: "Taylor Kim" },
+];
+
+const ROLE_OPTIONS: { id: string; emoji: string; label: string }[] = [
+  { id: "r1", emoji: "🎯", label: "Founder / CEO" },
+  { id: "r2", emoji: "📱", label: "Product Manager" },
+  { id: "r3", emoji: "🎨", label: "Designer" },
+  { id: "r4", emoji: "⚙️", label: "Engineer" },
+  { id: "r5", emoji: "📣", label: "Marketing / Growth" },
+  { id: "r6", emoji: "🤝", label: "Sales / BD" },
+  { id: "r7", emoji: "💼", label: "Consultant / Freelancer" },
+  { id: "r8", emoji: "📊", label: "Finance / Operations" },
+];
+
+const COMPANY_OPTIONS: { id: string; emoji: string; label: string }[] = [
+  { id: "c1", emoji: "🚀", label: "Early-stage startup" },
+  { id: "c2", emoji: "🏢", label: "Growth company" },
+  { id: "c3", emoji: "🏛️", label: "Enterprise" },
+  { id: "c4", emoji: "🛠️", label: "Agency / Studio" },
+  { id: "c5", emoji: "🎓", label: "University / Research" },
+  { id: "c6", emoji: "💡", label: "Independent / solo" },
+  { id: "c7", emoji: "🌐", label: "Nonprofit / community" },
+];
+
+const WEBSITE_OPTIONS: { id: string; emoji: string; label: string; value: string }[] = [
+  { id: "w0", emoji: "🚫", label: "No website for now", value: "" },
+  { id: "w1", emoji: "💼", label: "LinkedIn is my main presence", value: "linkedin.com" },
+  { id: "w2", emoji: "🏢", label: "Company / team site", value: "company.website" },
+  { id: "w3", emoji: "🎨", label: "Portfolio or project site", value: "portfolio.site" },
+];
+
+const NETWORKING_OPTIONS: { id: NetworkingIntentId; emoji: string; label: string }[] = [
+  { id: "pitch_product", emoji: "🚀", label: "Pitch my product or service" },
+  { id: "communicate_brand", emoji: "✨", label: "Communicate my brand" },
+  { id: "partnerships", emoji: "🤝", label: "Find partners or collaborators" },
+  { id: "hire", emoji: "👥", label: "Hire or recruit" },
+  { id: "learn_peers", emoji: "💡", label: "Learn from peers" },
+  { id: "investment", emoji: "📈", label: "Investment or fundraising" },
+];
+
 type Props = {
-  onComplete: () => void;
+  onComplete: (payload: OnboardingProfilePayload) => void;
 };
 
 export function OnboardingWizard({ onComplete }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
-  const [form, setForm] = useState(INITIAL_FORM);
-  const step = ONBOARDING_STEPS[stepIndex];
+  const [form, setForm] = useState<OnboardingForm>(INITIAL_FORM);
 
-  const ctaLabel = useMemo(() => {
-    if (step === "finish") return "Enter Duit Cards";
-    if (step === "welcome") return "Get Started";
-    return "Continue";
-  }, [step]);
+  const step = ONBOARDING_STEPS[stepIndex];
+  const totalSteps = ONBOARDING_STEPS.length;
+  const aiContent = useMemo(() => getAiFollowUpContent(form), [form]);
+  const planBullets = useMemo(() => getPlanBullets(form), [form]);
+
+  useEffect(() => {
+    const validIds = new Set(aiContent.options.map((o) => o.id));
+    if (form.aiFollowUpChoice && !validIds.has(form.aiFollowUpChoice)) {
+      setForm((f) => ({ ...f, aiFollowUpChoice: null }));
+    }
+  }, [aiContent.options, form.aiFollowUpChoice]);
 
   const disableContinue = !canProceed(step, form);
 
-  function toggleGoal(goal: OnboardingGoal) {
-    setForm((curr) => {
-      const selected = curr.goals.includes(goal);
-      if (selected) {
-        return { ...curr, goals: curr.goals.filter((item) => item !== goal) };
-      }
-      return { ...curr, goals: [...curr.goals, goal] };
-    });
+  const ctaLabel =
+    step === "complete" ? "Enter Duit Cards" : "Continue";
+
+  function finish(payload: OnboardingProfilePayload) {
+    onComplete(payload);
   }
 
-  function handleNext() {
-    if (step === "finish") {
-      onComplete();
+  function handlePrimaryPress() {
+    if (step === "complete") {
+      finish(buildProfilePayload(form));
       return;
     }
     if (!canProceed(step, form)) return;
-    setStepIndex((curr) => nextStepIndex(curr));
+    setStepIndex((i) => nextStepIndex(i));
+  }
+
+  function handleBack() {
+    setStepIndex((i) => prevStepIndex(i));
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top", "left", "right", "bottom"]}>
-      <View style={styles.heroGlowTop} />
-      <View style={styles.heroGlowBottom} />
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.brand}>Duit Cards</Text>
-          <Pressable onPress={onComplete} hitSlop={8}>
-            <Text style={styles.skip}>Skip</Text>
+    <LinearGradient
+      colors={["#FFF4EC", "#F3EDFF", "#FFFFFF"]}
+      locations={[0, 0.38, 1]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0.45 }}
+      style={styles.gradient}
+    >
+      <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+        <View style={styles.topBar}>
+          <Pressable
+            onPress={handleBack}
+            hitSlop={12}
+            style={[styles.iconBtn, stepIndex === 0 && styles.iconBtnHidden]}
+            disabled={stepIndex === 0}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="chevron-back" size={26} color={TEXT_PRIMARY} />
+          </Pressable>
+          <Pressable
+            onPress={() => finish(buildProfilePayload(form))}
+            hitSlop={12}
+            style={styles.skipWrap}
+          >
+            <Text style={styles.skipText}>Skip</Text>
           </Pressable>
         </View>
 
-        <View style={styles.progressRow}>
-          {ONBOARDING_STEPS.map((item, idx) => (
-            <View key={item} style={[styles.progressDot, idx <= stepIndex && styles.progressDotActive]} />
+        <View style={styles.progressTrack}>
+          {ONBOARDING_STEPS.map((_, idx) => (
+            <View
+              key={idx}
+              style={[
+                styles.progressSeg,
+                idx <= stepIndex ? styles.progressSegFill : styles.progressSegRest,
+              ]}
+            />
           ))}
         </View>
 
-        <View style={styles.card}>
-          {step === "welcome" && (
-            <>
-              <Text style={styles.eyebrow}>Welcome</Text>
-              <Text style={styles.title}>Build relationships that compound.</Text>
-              <Text style={styles.subtitle}>
-                A premium personal CRM experience inspired by social-first apps, tuned for fintech-grade trust.
-              </Text>
-              <View style={styles.pillsRow}>
-                {["Fast Setup", "Secure by default", "Highly personal"].map((item) => (
-                  <View key={item} style={styles.infoPill}>
-                    <Text style={styles.infoPillText}>{item}</Text>
-                  </View>
-                ))}
-              </View>
-            </>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {renderStepBody(
+            step,
+            form,
+            setForm,
+            aiContent,
+            planBullets,
+            (id) => {
+              setForm((curr) => {
+                const on = curr.networkingIntents.includes(id);
+                return {
+                  ...curr,
+                  networkingIntents: on
+                    ? curr.networkingIntents.filter((x) => x !== id)
+                    : [...curr.networkingIntents, id],
+                };
+              });
+            },
+            (id) => setForm((f) => ({ ...f, aiFollowUpChoice: id }))
           )}
-
-          {step === "goals" && (
-            <>
-              <Text style={styles.eyebrow}>Your Intent</Text>
-              <Text style={styles.title}>What matters most right now?</Text>
-              <Text style={styles.subtitle}>Select one or more goals so we can tailor your dashboard.</Text>
-              <View style={styles.goalGrid}>
-                {GOALS.map((goal) => {
-                  const active = form.goals.includes(goal.id);
-                  return (
-                    <Pressable
-                      key={goal.id}
-                      onPress={() => toggleGoal(goal.id)}
-                      style={[styles.goalCard, active && styles.goalCardActive]}
-                    >
-                      <Ionicons name={goal.icon} size={18} color={active ? "#1744C8" : "#4B5563"} />
-                      <Text style={[styles.goalLabel, active && styles.goalLabelActive]}>{goal.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </>
-          )}
-
-          {step === "profile" && (
-            <>
-              <Text style={styles.eyebrow}>Your Profile</Text>
-              <Text style={styles.title}>Let us personalize your card.</Text>
-              <Text style={styles.subtitle}>Only basic details for now. You can edit everything later.</Text>
-              <TextInput
-                value={form.fullName}
-                onChangeText={(fullName) => setForm((curr) => ({ ...curr, fullName }))}
-                placeholder="Full name"
-                placeholderTextColor="#8A93A6"
-                style={styles.input}
-                autoCapitalize="words"
-              />
-              <TextInput
-                value={form.workEmail}
-                onChangeText={(workEmail) => setForm((curr) => ({ ...curr, workEmail }))}
-                placeholder="Work email"
-                placeholderTextColor="#8A93A6"
-                style={styles.input}
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
-            </>
-          )}
-
-          {step === "finish" && (
-            <>
-              <Text style={styles.eyebrow}>Ready</Text>
-              <Text style={styles.title}>You are all set.</Text>
-              <Text style={styles.subtitle}>
-                We prepared your workspace for{" "}
-                <Text style={styles.subtitleStrong}>{form.fullName || "your account"}</Text>. Start adding cards and
-                building stronger connections.
-              </Text>
-              <View style={styles.successBox}>
-                <Ionicons name="checkmark-circle" size={22} color="#22643A" />
-                <Text style={styles.successText}>Onboarding complete</Text>
-              </View>
-            </>
-          )}
-        </View>
+        </ScrollView>
 
         <View style={styles.footer}>
+          {step === "name" && (
+            <Text style={styles.disclaimer}>
+              Pick a display name — you can change it anytime in settings.
+            </Text>
+          )}
           <Pressable
-            style={[styles.backButton, stepIndex === 0 && styles.backButtonHidden]}
-            onPress={() => setStepIndex((curr) => prevStepIndex(curr))}
-            disabled={stepIndex === 0}
+            onPress={handlePrimaryPress}
+            style={[
+              styles.cta,
+              disableContinue && step !== "complete" && styles.ctaDisabled,
+            ]}
+            disabled={disableContinue && step !== "complete"}
           >
-            <Text style={styles.backButtonText}>Back</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.primaryButton, disableContinue && step !== "finish" && styles.primaryButtonDisabled]}
-            onPress={handleNext}
-            disabled={disableContinue && step !== "finish"}
-          >
-            <Text style={styles.primaryButtonText}>{ctaLabel}</Text>
+            <Text
+              style={[
+                styles.ctaText,
+                disableContinue && step !== "complete" && styles.ctaTextDisabled,
+              ]}
+            >
+              {ctaLabel}
+            </Text>
           </Pressable>
         </View>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F3F6FF" },
-  content: { flex: 1, paddingHorizontal: 22, paddingVertical: 12 },
-  heroGlowTop: {
-    position: "absolute",
-    top: -40,
-    right: -20,
-    width: 220,
-    height: 220,
-    borderRadius: 999,
-    backgroundColor: "#CDD9FF",
-    opacity: 0.75,
-  },
-  heroGlowBottom: {
-    position: "absolute",
-    bottom: 80,
-    left: -60,
-    width: 240,
-    height: 240,
-    borderRadius: 999,
-    backgroundColor: "#E7DCFF",
-    opacity: 0.55,
-  },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
-  brand: { fontSize: 17, fontWeight: "700", color: "#111827", letterSpacing: 0.3 },
-  skip: { color: "#4263C4", fontWeight: "600" },
-  progressRow: { flexDirection: "row", gap: 8, marginBottom: 18 },
-  progressDot: { flex: 1, height: 5, borderRadius: 999, backgroundColor: "#D8E1F5" },
-  progressDotActive: { backgroundColor: "#3563E9" },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#DEE6F8",
-    padding: 20,
-    gap: 10,
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 4,
-  },
-  eyebrow: { color: "#3563E9", fontWeight: "700", fontSize: 13, letterSpacing: 0.2 },
-  title: { fontSize: 31, lineHeight: 36, fontWeight: "800", color: "#0F172A" },
-  subtitle: { color: "#64748B", fontSize: 15, lineHeight: 22 },
-  subtitleStrong: { fontWeight: "700", color: "#334155" },
-  pillsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 2 },
-  infoPill: { backgroundColor: "#EEF3FF", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
-  infoPillText: { color: "#3558B9", fontSize: 12, fontWeight: "600" },
-  goalGrid: { gap: 10, marginTop: 4 },
-  goalCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#D8E1F5",
-    backgroundColor: "#F9FBFF",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-  },
-  goalCardActive: { borderColor: "#9BB3FF", backgroundColor: "#EAF0FF" },
-  goalLabel: { color: "#4B5563", fontWeight: "600" },
-  goalLabelActive: { color: "#1744C8" },
-  input: {
-    borderWidth: 1,
-    borderColor: "#D9E3F8",
-    borderRadius: 12,
-    backgroundColor: "#FAFCFF",
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    fontSize: 15,
-  },
-  successBox: {
-    marginTop: 8,
-    borderRadius: 14,
-    backgroundColor: "#E7F7ED",
-    borderWidth: 1,
-    borderColor: "#B6E2C6",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-  },
-  successText: { color: "#22643A", fontWeight: "700" },
-  footer: { marginTop: "auto", flexDirection: "row", gap: 10, paddingVertical: 16 },
-  backButton: {
-    flex: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#CAD6F2",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 13,
-    backgroundColor: "#FFFFFF",
-  },
-  backButtonHidden: { opacity: 0 },
-  backButtonText: { color: "#3558B9", fontWeight: "700" },
-  primaryButton: {
-    flex: 2,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 13,
-    backgroundColor: "#3563E9",
-  },
-  primaryButtonDisabled: { backgroundColor: "#9FB6F8" },
-  primaryButtonText: { color: "#FFFFFF", fontWeight: "700" },
-});
+function renderStepBody(
+  step: OnboardingStepId,
+  form: OnboardingForm,
+  setForm: React.Dispatch<React.SetStateAction<OnboardingForm>>,
+  aiContent: ReturnType<typeof getAiFollowUpContent>,
+  planBullets: string[],
+  onToggleIntent: (id: NetworkingIntentId) => void,
+  onSelectAiOption: (id: string) => void
+) {
+  const fn = firstName(form.fullName);
 
+  switch (step) {
+    case "name":
+      return (
+        <View style={styles.block}>
+          <Text style={styles.questionTitle}>How should we greet you?</Text>
+          <Text style={styles.questionHint}>Tap one option — no typing needed</Text>
+          <View style={styles.listGap}>
+            {DISPLAY_NAME_OPTIONS.map((opt) => {
+              const selected = form.fullName === opt.label;
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => setForm((f) => ({ ...f, fullName: opt.label }))}
+                  style={[styles.optionRow, selected && styles.optionRowSelected]}
+                  accessibilityRole="button"
+                  accessibilityLabel={opt.label}
+                >
+                  <Text style={styles.optionEmoji}>{opt.emoji}</Text>
+                  <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>
+                    {opt.label}
+                  </Text>
+                  <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
+                    {selected ? <View style={styles.radioInner} /> : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      );
+
+    case "story":
+      return (
+        <View style={styles.centerBlock}>
+          <Text style={styles.storyText}>
+            You have made your first step toward{" "}
+            <Text style={styles.storyAccent}>{fn}&apos;s</Text> professional network.
+          </Text>
+        </View>
+      );
+
+    case "role_title":
+      return (
+        <View style={styles.block}>
+          <Text style={styles.questionTitle}>Hi {fn}, what best describes your role?</Text>
+          <Text style={styles.questionHint}>Choose the closest match</Text>
+          <View style={styles.listGap}>
+            {ROLE_OPTIONS.map((opt) => {
+              const selected = form.roleTitle === opt.label;
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => setForm((f) => ({ ...f, roleTitle: opt.label }))}
+                  style={[styles.optionRow, selected && styles.optionRowSelected]}
+                  accessibilityRole="button"
+                  accessibilityLabel={opt.label}
+                >
+                  <Text style={styles.optionEmoji}>{opt.emoji}</Text>
+                  <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>
+                    {opt.label}
+                  </Text>
+                  <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
+                    {selected ? <View style={styles.radioInner} /> : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      );
+
+    case "company":
+      return (
+        <View style={styles.block}>
+          <Text style={styles.questionTitle}>What kind of organization are you with?</Text>
+          <Text style={styles.questionHint}>We use this to tune your card layout</Text>
+          <View style={styles.listGap}>
+            {COMPANY_OPTIONS.map((opt) => {
+              const selected = form.company === opt.label;
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => setForm((f) => ({ ...f, company: opt.label }))}
+                  style={[styles.optionRow, selected && styles.optionRowSelected]}
+                  accessibilityRole="button"
+                  accessibilityLabel={opt.label}
+                >
+                  <Text style={styles.optionEmoji}>{opt.emoji}</Text>
+                  <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>
+                    {opt.label}
+                  </Text>
+                  <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
+                    {selected ? <View style={styles.radioInner} /> : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      );
+
+    case "website":
+      return (
+        <View style={styles.block}>
+          <Text style={styles.questionTitle}>How do you show up online?</Text>
+          <Text style={styles.questionHint}>
+            Pick one — we will tailor suggestions (mock for now)
+          </Text>
+          <View style={styles.listGap}>
+            {WEBSITE_OPTIONS.map((opt) => {
+              const selected = form.websiteChoiceMade && form.website === opt.value;
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() =>
+                    setForm((f) => ({
+                      ...f,
+                      website: opt.value,
+                      websiteChoiceMade: true,
+                    }))
+                  }
+                  style={[styles.optionRow, selected && styles.optionRowSelected]}
+                  accessibilityRole="button"
+                  accessibilityLabel={opt.label}
+                >
+                  <Text style={styles.optionEmoji}>{opt.emoji}</Text>
+                  <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>
+                    {opt.label}
+                  </Text>
+                  <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
+                    {selected ? <View style={styles.radioInner} /> : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      );
+
+    case "networking":
+      return (
+        <View style={styles.block}>
+          <Text style={styles.questionTitle}>What are you looking for when you network?</Text>
+          <Text style={styles.questionHint}>Choose all that apply</Text>
+          <View style={styles.listGap}>
+            {NETWORKING_OPTIONS.map((item) => {
+              const selected = form.networkingIntents.includes(item.id);
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => onToggleIntent(item.id)}
+                  style={[styles.optionRow, selected && styles.optionRowSelected]}
+                >
+                  <Text style={styles.optionEmoji}>{item.emoji}</Text>
+                  <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>
+                    {item.label}
+                  </Text>
+                  <View style={[styles.checkOuter, selected && styles.checkOuterSelected]}>
+                    {selected ? (
+                      <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                    ) : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      );
+
+    case "ai_followup":
+      return (
+        <View style={styles.block}>
+          <Text style={styles.questionTitle}>{aiContent.headline}</Text>
+          <Text style={styles.questionHint}>{aiContent.subtitle}</Text>
+          <View style={styles.listGap}>
+            {aiContent.options.map((opt) => {
+              const selected = form.aiFollowUpChoice === opt.id;
+              return (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => onSelectAiOption(opt.id)}
+                  style={[styles.optionRow, selected && styles.optionRowSelected]}
+                >
+                  <Text style={styles.optionEmoji}>{opt.emoji}</Text>
+                  <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>
+                    {opt.label}
+                  </Text>
+                  <View style={[styles.radioOuter, selected && styles.radioOuterSelected]}>
+                    {selected ? <View style={styles.radioInner} /> : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      );
+
+    case "plan_summary":
+      return (
+        <View style={styles.block}>
+          <Text style={styles.questionTitle}>Got it! We will help you:</Text>
+          <View style={styles.listGap}>
+            {planBullets.map((line, i) => (
+              <View key={i} style={styles.planRow}>
+                <Ionicons name="checkmark-circle" size={22} color={CTA_GREEN} />
+                <Text style={styles.planText}>{line}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      );
+
+    case "complete":
+      return (
+        <View style={styles.centerBlock}>
+          <Text style={styles.questionTitle}>You are ready, {fn}</Text>
+          <Text style={styles.questionHint}>
+            Your workspace is tuned from what you shared. You can change everything later in settings.
+          </Text>
+        </View>
+      );
+
+    default:
+      return null;
+  }
+}
+
+const styles = StyleSheet.create({
+  gradient: { flex: 1 },
+  safe: { flex: 1 },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+    paddingTop: 4,
+    minHeight: 44,
+  },
+  iconBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "flex-start" },
+  iconBtnHidden: { opacity: 0 },
+  skipWrap: { paddingHorizontal: 12, paddingVertical: 8 },
+  skipText: { color: "#475569", fontSize: 16, fontWeight: "600" },
+  progressTrack: {
+    flexDirection: "row",
+    gap: 5,
+    paddingHorizontal: 20,
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  progressSeg: { flex: 1, height: 4, borderRadius: 999 },
+  progressSegFill: { backgroundColor: TEXT_PRIMARY },
+  progressSegRest: { backgroundColor: "#E2E8F0" },
+  scroll: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: 22,
+    paddingBottom: 24,
+    flexGrow: 1,
+  },
+  block: { paddingTop: 8, gap: 8 },
+  centerBlock: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingVertical: 32,
+    gap: 12,
+  },
+  questionTitle: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: TEXT_PRIMARY,
+    letterSpacing: -0.3,
+    lineHeight: 32,
+  },
+  questionHint: {
+    fontSize: 15,
+    color: TEXT_MUTED,
+    lineHeight: 22,
+    marginTop: -4,
+    marginBottom: 8,
+  },
+  storyText: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: TEXT_PRIMARY,
+    lineHeight: 34,
+    textAlign: "center",
+  },
+  storyAccent: { color: ACCENT_ORANGE, fontWeight: "800" },
+  listGap: { gap: 10, marginTop: 8 },
+  optionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "rgba(255,255,255,0.85)",
+  },
+  optionRowSelected: {
+    borderColor: CTA_GREEN,
+    backgroundColor: "#F0FDF4",
+  },
+  optionEmoji: { fontSize: 22 },
+  optionLabel: { flex: 1, fontSize: 16, color: TEXT_PRIMARY, fontWeight: "500" },
+  optionLabelSelected: { fontWeight: "600" },
+  checkOuter: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  checkOuterSelected: {
+    borderColor: CTA_GREEN,
+    backgroundColor: CTA_GREEN,
+  },
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioOuterSelected: { borderColor: CTA_GREEN },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: CTA_GREEN,
+  },
+  planRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  planText: { flex: 1, fontSize: 16, color: "#334155", lineHeight: 24 },
+  footer: {
+    paddingHorizontal: 22,
+    paddingBottom: 20,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(15,23,42,0.06)",
+    backgroundColor: "rgba(255,255,255,0.65)",
+  },
+  disclaimer: {
+    textAlign: "center",
+    fontSize: 12,
+    color: TEXT_MUTED,
+    marginBottom: 10,
+  },
+  cta: {
+    borderRadius: 999,
+    backgroundColor: CTA_GREEN,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ctaDisabled: { backgroundColor: CTA_GREEN_DISABLED },
+  ctaText: { color: "#FFFFFF", fontSize: 17, fontWeight: "700" },
+  ctaTextDisabled: { color: "#F1F5F9" },
+});

@@ -1,7 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StatusBar } from "expo-status-bar";
-import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
+import {
+  NavigationContainer,
+  DefaultTheme,
+  useNavigation,
+} from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React, { useEffect, useMemo, useState } from "react";
@@ -18,7 +22,12 @@ import {
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { OnboardingWizard } from "./src/onboarding/OnboardingWizard";
 import { featureFlags } from "./src/onboarding/featureFlags";
-import { ONBOARDING_COMPLETED_KEY, shouldShowOnboarding } from "./src/onboarding/state";
+import {
+  type OnboardingProfilePayload,
+  ONBOARDING_COMPLETED_KEY,
+  ONBOARDING_PROFILE_KEY,
+  shouldShowOnboarding,
+} from "./src/onboarding/state";
 
 type Contact = {
   id: string;
@@ -152,6 +161,7 @@ function DashboardScreen({
   contacts: Contact[];
   onOpenContact: (id: string) => void;
 }) {
+  const navigation = useNavigation();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"Recent" | "Favorites" | "Tags">("Recent");
 
@@ -204,7 +214,17 @@ function DashboardScreen({
           </Pressable>
         ))}
       </ScrollView>
-      <Pressable style={styles.fab}>
+      <Pressable
+        style={styles.fab}
+        onPress={() => {
+          const parent = navigation.getParent();
+          if (parent) {
+            parent.navigate("AddCard" as never);
+          }
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="Add card"
+      >
         <Ionicons name="add" size={26} color="#fff" />
       </Pressable>
     </SafeAreaView>
@@ -327,16 +347,36 @@ function RemindersScreen() {
 }
 
 function MyCardScreen() {
+  const [profile, setProfile] = useState<OnboardingProfilePayload | null>(null);
+
+  useEffect(() => {
+    void AsyncStorage.getItem(ONBOARDING_PROFILE_KEY).then((raw) => {
+      if (!raw) return;
+      try {
+        setProfile(JSON.parse(raw) as OnboardingProfilePayload);
+      } catch {
+        /* ignore corrupt storage */
+      }
+    });
+  }, []);
+
+  const displayName = profile?.fullName?.trim() || "Your name";
+  const roleLine = profile?.roleTitle?.trim() || "Your role";
+  const orgLine = profile?.company?.trim() || "Your organization";
+  const webLine = profile?.website?.trim() || "Add a link in settings";
+
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right"]}>
       <View style={styles.page}>
         <Text style={styles.title}>My Card</Text>
         <View style={styles.profileCard}>
-          <Text style={styles.cardName}>Prakhar Goel</Text>
-          <Text style={styles.cardMeta}>Full-Stack Engineer & Product Designer</Text>
-          <Text style={styles.contactDetail}>prakhar@duitcards.app</Text>
+          <Text style={styles.cardName}>{displayName}</Text>
+          <Text style={styles.cardMeta}>
+            {roleLine} — {orgLine}
+          </Text>
+          <Text style={styles.contactDetail}>hello@duitcards.app</Text>
           <Text style={styles.contactDetail}>+62 812 0000 1234</Text>
-          <Text style={styles.contactDetail}>duitcards.app/prakhar</Text>
+          <Text style={styles.contactDetail}>{webLine}</Text>
         </View>
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Share</Text>
@@ -442,9 +482,10 @@ export default function App() {
     };
   }, []);
 
-  async function handleCompleteOnboarding() {
+  async function handleCompleteOnboarding(payload: OnboardingProfilePayload) {
     setHasCompletedOnboarding(true);
     await AsyncStorage.setItem(ONBOARDING_COMPLETED_KEY, "true");
+    await AsyncStorage.setItem(ONBOARDING_PROFILE_KEY, JSON.stringify(payload));
   }
 
   const showOnboarding = shouldShowOnboarding(featureFlags.onboardingWizardV1, hasCompletedOnboarding);
@@ -458,7 +499,7 @@ export default function App() {
             <ActivityIndicator size="large" color="#3563E9" />
           </SafeAreaView>
         ) : showOnboarding ? (
-          <OnboardingWizard onComplete={() => void handleCompleteOnboarding()} />
+          <OnboardingWizard onComplete={(p) => void handleCompleteOnboarding(p)} />
         ) : (
           <MainTabs />
         )}
