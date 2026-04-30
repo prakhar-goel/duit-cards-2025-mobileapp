@@ -2,7 +2,7 @@
   "expo": {
     "name": "duit_cards_2025_mobileapp_cursor",
     "slug": "duit_cards_2025_mobileapp_cursor",
-    "version": "1.0.0",
+    "version": "0.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,7 +13,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.prakhar.duit-cards-2025-mobileapp-cursor"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,10 +23,20 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "io.duit.ecards"
+      "package": "io.duit.ecards",
+      "versionCode": 100
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b57ffffc-8706-4224-8036-ff3774883cb6"
+      }
+    },
+    "owner": "prakhar"
   }
 }
