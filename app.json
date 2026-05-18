@@ -24,7 +24,6 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "io.duit.ecards",
-      "versionCode": 100
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -37,7 +36,7 @@
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
-            "minSdkVersion": 23
+            "minSdkVersion": 24
           }
         }
       ]
