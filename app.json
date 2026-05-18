@@ -2,7 +2,7 @@
   "expo": {
     "name": "duit_cards_2025_mobileapp_cursor",
     "slug": "duit_cards_2025_mobileapp_cursor",
-    "version": "0.0.1",
+    "version": "3.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -23,8 +23,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "io.duit.ecards",
-      "versionCode": 100
+      "package": "io.duit.ecards"
     },
     "web": {
       "favicon": "./assets/favicon.png"
