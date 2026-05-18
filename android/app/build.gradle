@@ -87,13 +87,13 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.prakhar.duit_cards_2025_mobileapp_cursor'
+    namespace 'io.duit.ecards'
     defaultConfig {
-        applicationId 'com.prakhar.duit_cards_2025_mobileapp_cursor'
+        applicationId 'io.duit.ecards'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        versionCode 14
+        versionName "3.0.3"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }

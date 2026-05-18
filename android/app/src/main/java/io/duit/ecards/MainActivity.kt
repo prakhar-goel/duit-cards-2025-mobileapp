@@ -1,4 +1,4 @@
-package com.prakhar.duit_cards_2025_mobileapp_cursor
+package io.duit.ecards
 
 import android.os.Build
 import android.os.Bundle
